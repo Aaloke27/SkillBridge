@@ -34,7 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillbridge.ui.auth.RegisterScreen
 import com.example.skillbridge.ui.theme.SkillBridgeTheme
-
+import com.example.skillbridge.ui.auth.LoginScreen
+import com.example.skillbridge.ui.customer.CustomerHomeScreen
+import com.example.skillbridge.ui.worker.WorkerDashboardScreen
 private val Navy = Color(0xFF101D3A)
 private val Teal = Color(0xFF12A594)
 private val LightText = Color(0xFFD4DEEE)
@@ -55,13 +57,14 @@ class MainActivity : ComponentActivity() {
                     color = if (currentScreen == "welcome") Navy
                     else Color.White
                 ) {
+
                     when (currentScreen) {
                         "welcome" -> WelcomeScreen(
                             onCreateAccountClick = {
                                 currentScreen = "register"
                             },
                             onSignInClick = {
-                                // Login screen will be added next.
+                                currentScreen = "login"
                             }
                         )
 
@@ -70,15 +73,33 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = "welcome"
                             },
                             onSignInClick = {
-                                // Login screen will be added next.
+                                currentScreen = "login"
                             },
                             onRegisterClick = { name, email, password, role ->
-                                // We'll connect Firebase after the UI works.
-                                // For now, return to Welcome.
-                                currentScreen = "welcome"
+                                currentScreen = if (role == "Customer") {
+                                    "customer_home"
+                                } else {
+                                    "worker_dashboard"
+                                }
                             }
                         )
+
+                        "login" -> LoginScreen(
+                            onBackClick = {
+                                currentScreen = "welcome"
+                            },
+                            onRegisterClick = {
+                                currentScreen = "register"
+                            },
+                            onLoginClick = { email, password ->
+                                // Firebase login will be added later.
+                            }
+                        )
+
+                        "customer_home" -> CustomerHomeScreen()
+                        "worker_dashboard" -> WorkerDashboardScreen()
                     }
+
                 }
             }
         }
