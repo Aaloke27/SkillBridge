@@ -1,22 +1,52 @@
 
 package com.example.skillbridge.ui.customer
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.skillbridge.data.Booking
+import com.example.skillbridge.data.BookingRepository
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -41,6 +71,14 @@ fun CustomerHomeScreen(
     onBookingsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {}
 ) {
+
+    var selectedWorker by remember { mutableStateOf<Worker?>(null) }
+    var isBooking by remember { mutableStateOf(false) }
+    var bookingError by remember { mutableStateOf<String?>(null) }
+
+    val bookingRepository = remember { BookingRepository() }
+    val auth = remember { FirebaseAuth.getInstance() }
+    val context = LocalContext.current
     var searchText by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
     var selectedTab by remember { mutableStateOf("Home") }
@@ -350,7 +388,13 @@ fun CustomerHomeScreen(
                         items = filteredWorkers,
                         key = { it.uid }
                     ) { worker ->
-                        WorkerCard(worker = worker)
+                        WorkerCard(
+                            worker = worker,
+                            onBookClick = {
+                                selectedWorker = worker
+                                bookingError = null
+                            }
+                        )
                     }
                 }
             }
@@ -394,6 +438,126 @@ fun CustomerHomeScreen(
             }
         }
     }
+
+    if (selectedWorker != null) {
+        var description by remember(selectedWorker?.uid) {
+            mutableStateOf("")
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                if (!isBooking) {
+                    selectedWorker = null
+                    bookingError = null
+                }
+            },
+            title = {
+                Text("Book ${selectedWorker?.name ?: "Worker"}")
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Service: ${selectedWorker?.profession.orEmpty()}"
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = {
+                            description = it
+                            bookingError = null
+                        },
+                        label = { Text("Describe the service you need") },
+                        placeholder = {
+                            Text("e.g. Repair a leaking kitchen tap")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 5,
+                        enabled = !isBooking
+                    )
+
+                    bookingError?.let { error ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !isBooking && description.isNotBlank(),
+                    onClick = {
+                        val worker = selectedWorker ?: return@Button
+                        val user = auth.currentUser
+
+                        if (user == null) {
+                            bookingError = "Please sign in again."
+                            return@Button
+                        }
+
+                        isBooking = true
+                        bookingError = null
+
+                        val customerId = user.uid
+                        val workerId = worker.uid
+
+                        if (workerId.isBlank()) {
+                            bookingError = "This worker's account ID is missing."
+                            isBooking = false
+                            return@Button
+                        }
+
+                        scope.launch {
+                            val result = bookingRepository.createBooking(
+                                Booking(
+                                    customerId = customerId,
+                                    customerName = user.displayName ?: user.email ?: "Customer",
+                                    workerId = workerId,
+                                    workerName = worker.name,
+                                    profession = worker.profession,
+                                    description = description.trim()
+                                )
+                            )
+
+                            isBooking = false
+
+                            result.onSuccess {
+                                Toast.makeText(
+                                    context,
+                                    "Booking request sent successfully!",
+                                    Toast.LENGTH_LONG
+                                ).show()
+
+                                selectedWorker = null
+                                bookingError = null
+                            }.onFailure { error ->
+                                bookingError = error.localizedMessage
+                                    ?: "Failed to send booking. Please try again."
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (isBooking) "Booking..." else "Confirm Booking")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBooking,
+                    onClick = {
+                        selectedWorker = null
+                        bookingError = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
 }
 
 @Composable
@@ -430,8 +594,12 @@ private fun CategoryCard(
     }
 }
 
+
 @Composable
-private fun WorkerCard(worker: Worker) {
+private fun WorkerCard(
+    worker: Worker,
+    onBookClick: () -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -457,9 +625,11 @@ private fun WorkerCard(worker: Worker) {
                 )
             }
 
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     text = worker.name,
                     fontWeight = FontWeight.Bold,
@@ -471,17 +641,26 @@ private fun WorkerCard(worker: Worker) {
                     color = Color.Gray,
                     fontSize = 13.sp
                 )
-            }
 
-            Text(
-                text = "Worker",
-                color = HomeTeal,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            )
+                Spacer(Modifier.height(8.dp))
+
+                Button(
+                    onClick = onBookClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = HomeTeal
+                    ),
+                    contentPadding = PaddingValues(
+                        horizontal = 14.dp,
+                        vertical = 6.dp
+                    )
+                ) {
+                    Text("Book Now")
+                }
+            }
         }
     }
 }
+
 
 @Composable
 private fun BottomTab(
