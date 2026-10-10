@@ -32,38 +32,63 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
+import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.runtime.rememberCoroutineScope
+import com.google.firebase.firestore.FirebaseFirestore
+import com.example.skillbridge.data.Booking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import androidx.compose.runtime.LaunchedEffect
 private val WorkerNavy = Color(0xFF101D3A)
 private val WorkerTeal = Color(0xFF12A594)
 private val WorkerBackground = Color(0xFFF4F7FB)
 
-private data class JobRequest(
-    val id: Int,
-    val customer: String,
-    val service: String,
-    val location: String,
-    val price: String
-)
+
 
 @Composable
 fun WorkerDashboardScreen() {
     var isAvailable by remember { mutableStateOf(true) }
 
-    val requests = remember {
-        mutableStateListOf(
-            JobRequest(
-                1, "Rahul Sharma", "Electrician",
-                "Khardah", "₹500"
-            ),
-            JobRequest(
-                2, "Priya Das", "Fan Repair",
-                "Barrackpore", "₹300"
-            ),
-            JobRequest(
-                3, "Amit Roy", "Wiring Repair",
-                "Barrackpore", "₹800"
-            )
-        )
+    var requests by remember {
+        mutableStateOf<List<Booking>>(emptyList())
+    }
+
+    var isLoadingRequests by remember {
+        mutableStateOf(true)
+    }
+
+    var requestError by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    val auth = remember { FirebaseAuth.getInstance() }
+    val firestore = remember { FirebaseFirestore.getInstance() }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        val workerId = auth.currentUser?.uid
+
+        if (workerId.isNullOrBlank()) {
+            requestError = "Please sign in again."
+            isLoadingRequests = false
+        } else {
+            try {
+                val snapshot = firestore.collection("bookings")
+                    .whereEqualTo("workerId", workerId)
+                    .whereEqualTo("status", "Pending")
+                    .get()
+                    .await()
+
+                requests = snapshot.documents.mapNotNull { document ->
+                    document.toObject(Booking::class.java)
+                        ?.copy(id = document.id)
+                }
+            } catch (e: Exception) {
+                requestError = e.localizedMessage
+                    ?: "Failed to load booking requests."
+            } finally {
+                isLoadingRequests = false
+            }
+        }
     }
 
     var acceptedJobs by remember { mutableStateOf(0) }
@@ -199,6 +224,13 @@ fun WorkerDashboardScreen() {
                 text = "Turn on availability to receive new requests.",
                 color = Color.Gray
             )
+        } else if (isLoadingRequests) {
+            androidx.compose.material3.CircularProgressIndicator()
+        } else if (requestError != null) {
+            Text(
+                text = requestError ?: "Something went wrong.",
+                color = Color.Red
+            )
         } else if (requests.isEmpty()) {
             Text(
                 text = "No pending requests right now.",
@@ -215,20 +247,52 @@ fun WorkerDashboardScreen() {
                     JobRequestCard(
                         request = request,
                         onAccept = {
-                            requests.remove(request)
-                            acceptedJobs++
-                            message = "Request accepted: ${request.service}"
+                            scope.launch {
+                                try {
+                                    firestore.collection("bookings")
+                                        .document(request.id)
+                                        .update("status", "Accepted")
+                                        .await()
+
+                                    requests = requests.filterNot {
+                                        it.id == request.id
+                                    }
+
+                                    acceptedJobs++
+                                    message = "Request accepted: ${request.profession}"
+                                } catch (e: Exception) {
+                                    message = e.localizedMessage
+                                        ?: "Failed to accept request"
+                                }
+                            }
                         },
                         onReject = {
-                            requests.remove(request)
-                            message = "Request declined."
+                            scope.launch {
+                                try {
+                                    firestore.collection("bookings")
+                                        .document(request.id)
+                                        .update("status", "Rejected")
+                                        .await()
+
+                                    requests = requests.filterNot {
+                                        it.id == request.id
+                                    }
+
+                                    message = "Request declined: ${request.profession}"
+                                } catch (e: Exception) {
+                                    message = e.localizedMessage
+                                        ?: "Failed to decline request"
+                                }
+                            }
                         }
                     )
                 }
             }
         }
+        }
     }
-}
+
+
 
 @Composable
 private fun SummaryCard(
@@ -269,7 +333,7 @@ private fun SummaryCard(
 
 @Composable
 private fun JobRequestCard(
-    request: JobRequest,
+    request: Booking,
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
@@ -284,7 +348,7 @@ private fun JobRequestCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = request.service,
+                text = request.profession,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = WorkerNavy
@@ -293,19 +357,21 @@ private fun JobRequestCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Customer: ${request.customer}",
+                text = "Customer: ${request.customerName}",
                 color = Color.DarkGray
             )
 
+            Spacer(modifier = Modifier.height(5.dp))
+
             Text(
-                text = "Location: ${request.location}",
+                text = "Request: ${request.description}",
                 color = Color.Gray
             )
 
             Spacer(modifier = Modifier.height(5.dp))
 
             Text(
-                text = "Estimated payment: ${request.price}",
+                text = "Status: ${request.status}",
                 color = WorkerTeal,
                 fontWeight = FontWeight.Bold
             )
@@ -338,3 +404,4 @@ private fun JobRequestCard(
         }
     }
 }
+
