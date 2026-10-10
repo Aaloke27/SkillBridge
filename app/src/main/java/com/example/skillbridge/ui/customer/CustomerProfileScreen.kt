@@ -40,7 +40,8 @@ private val ProfileBackground = Color(0xFFF5F7FA)
 
 @Composable
 fun CustomerProfileScreen(
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onLogoutClick: () -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val firestore = remember { FirebaseFirestore.getInstance() }
@@ -198,6 +199,18 @@ fun CustomerProfileScreen(
                         Text(
                             if (isSaving) "Saving..." else "Save Changes"
                         )
+                    }
+                    Button(
+                        onClick = {
+                            auth.signOut()
+                            onLogoutClick()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = Color.Red
+                        )
+                    ) {
+                        Text("Logout")
                     }
                 }
             }

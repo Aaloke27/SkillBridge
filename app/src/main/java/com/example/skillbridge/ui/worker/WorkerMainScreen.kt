@@ -25,7 +25,9 @@ import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Person
 
 @Composable
-fun WorkerMainScreen() {
+fun WorkerMainScreen(
+    onLogoutClick: () -> Unit
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -69,7 +71,11 @@ fun WorkerMainScreen() {
             when (selectedTab) {
                 0 -> WorkerDashboardScreen()
                 1 -> WorkerBookingsScreen()
-                2 -> WorkerProfileScreen()
+                2 -> WorkerProfileScreen(
+                    onLogoutClick = {
+                        onLogoutClick()
+                    }
+                )
             }
         }
     }

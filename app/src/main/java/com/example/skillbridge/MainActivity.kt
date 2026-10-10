@@ -25,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +43,13 @@ import kotlinx.coroutines.launch
 import com.example.skillbridge.ui.customer.CustomerBookingsScreen
 import com.example.skillbridge.ui.customer.CustomerProfileScreen
 import com.example.skillbridge.ui.worker.WorkerMainScreen
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Box
+import com.google.firebase.auth.FirebaseAuth
 private val Navy = Color(0xFF101D3A)
 private val Teal = Color(0xFF12A594)
 private val LightText = Color(0xFFD4DEEE)
@@ -58,7 +64,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             SkillBridgeTheme {
                 var currentScreen by remember {
-                    mutableStateOf("welcome")
+                    mutableStateOf("checking_session")
                 }
 
                 val authManager = remember {
@@ -66,6 +72,25 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val scope = rememberCoroutineScope()
+                LaunchedEffect(Unit) {
+                    val user = FirebaseAuth.getInstance().currentUser
+
+                    if (user == null) {
+                        currentScreen = "welcome"
+                    } else {
+                        val roleResult = authManager.getUserRole(user.uid)
+
+                        currentScreen = if (roleResult.isSuccess) {
+                            when (roleResult.getOrThrow()) {
+                                "Customer" -> "customer_home"
+                                "Worker" -> "worker_dashboard"
+                                else -> "welcome"
+                            }
+                        } else {
+                            "welcome"
+                        }
+                    }
+                }
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -76,6 +101,14 @@ class MainActivity : ComponentActivity() {
                     }
                 ) {
                     when (currentScreen) {
+                        "checking_session" -> Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
 
                         "welcome" -> WelcomeScreen(
                             onCreateAccountClick = {
@@ -190,6 +223,9 @@ class MainActivity : ComponentActivity() {
                         "customer_profile" -> CustomerProfileScreen(
                             onBackClick = {
                                 currentScreen = "customer_home"
+                            },
+                            onLogoutClick = {
+                                currentScreen = "welcome"
                             }
                         )
 
@@ -200,7 +236,11 @@ class MainActivity : ComponentActivity() {
                         )
 
 
-                        "worker_dashboard" -> WorkerMainScreen()
+                        "worker_dashboard" -> WorkerMainScreen(
+                            onLogoutClick = {
+                                currentScreen = "welcome"
+                            }
+                        )
                     }
                 }
             }

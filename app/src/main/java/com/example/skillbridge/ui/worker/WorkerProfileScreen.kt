@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -26,7 +27,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 @Composable
-fun WorkerProfileScreen() {
+fun WorkerProfileScreen(
+    onLogoutClick: () -> Unit
+) {
     val auth = remember { FirebaseAuth.getInstance() }
     val firestore = remember { FirebaseFirestore.getInstance() }
     val scope = rememberCoroutineScope()
@@ -136,6 +139,18 @@ fun WorkerProfileScreen() {
                 enabled = !isSaving
             ) {
                 Text(if (isSaving) "Saving..." else "Save Changes")
+            }
+            Button(
+                onClick = {
+                    FirebaseAuth.getInstance().signOut()
+                    onLogoutClick()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = Color.Red
+                )
+            ) {
+                Text("Logout")
             }
 
             if (message.isNotBlank()) {
