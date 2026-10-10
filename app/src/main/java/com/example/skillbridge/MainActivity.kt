@@ -43,6 +43,7 @@ import com.example.skillbridge.data.FirebaseAuthManager
 import kotlinx.coroutines.launch
 import com.example.skillbridge.ui.customer.CustomerBookingsScreen
 import com.example.skillbridge.ui.customer.CustomerProfileScreen
+import com.example.skillbridge.ui.worker.WorkerMainScreen
 private val Navy = Color(0xFF101D3A)
 private val Teal = Color(0xFF12A594)
 private val LightText = Color(0xFFD4DEEE)
@@ -199,7 +200,7 @@ class MainActivity : ComponentActivity() {
                         )
 
 
-                        "worker_dashboard" -> WorkerDashboardScreen()
+                        "worker_dashboard" -> WorkerMainScreen()
                     }
                 }
             }

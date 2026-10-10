@@ -61,4 +61,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
+
+//    icons
+    implementation("androidx.compose.material:material-icons-extended")
 }
