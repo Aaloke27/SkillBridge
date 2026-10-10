@@ -142,16 +142,6 @@ fun CustomerHomeScreen(
     }
 
 
-
-
-
-
-
-
-
-
-
-
     // Search by name or profession, then apply the selected category.
     val filteredWorkers = workers.filter { worker ->
         val matchesSearch =
@@ -530,34 +520,55 @@ fun CustomerHomeScreen(
                             return@Button
                         }
 
+
                         scope.launch {
-                            val result = bookingRepository.createBooking(
-                                Booking(
-                                    customerId = customerId,
-                                    customerName = user.displayName ?: user.email ?: "Customer",
-                                    workerId = workerId,
-                                    workerName = worker.name,
-                                    profession = worker.profession,
-                                    description = description.trim()
+                            try {
+                                // Read the customer's saved profile
+                                val customerDocument = FirebaseFirestore
+                                    .getInstance()
+                                    .collection("users")
+                                    .document(customerId)
+                                    .get()
+                                    .await()
+
+                                val customerName = customerDocument
+                                    .getString("name")
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: "Customer"
+
+                                // Create the booking with the real customer name
+                                val result = bookingRepository.createBooking(
+                                    Booking(
+                                        customerId = customerId,
+                                        customerName = customerName,
+                                        workerId = workerId,
+                                        workerName = worker.name,
+                                        profession = worker.profession,
+                                        description = description.trim()
+                                    )
                                 )
-                            )
 
-                            isBooking = false
+                                result.onSuccess {
+                                    Toast.makeText(
+                                        context,
+                                        "Booking request sent successfully!",
+                                        Toast.LENGTH_LONG
+                                    ).show()
 
-                            result.onSuccess {
-                                Toast.makeText(
-                                    context,
-                                    "Booking request sent successfully!",
-                                    Toast.LENGTH_LONG
-                                ).show()
-
-                                selectedWorker = null
-                                bookingError = null
-                            }.onFailure { error ->
+                                    selectedWorker = null
+                                    bookingError = null
+                                }.onFailure { error ->
+                                    bookingError = error.localizedMessage
+                                        ?: "Failed to send booking. Please try again."
+                                }
+                            } catch (error: Exception) {
                                 bookingError = error.localizedMessage
-                                    ?: "Failed to send booking. Please try again."
+                                    ?: "Failed to load customer profile."
+                            } finally {
+                                isBooking = false
                             }
                         }
+
                     }
                 ) {
                     Text(if (isBooking) "Booking..." else "Confirm Booking")
