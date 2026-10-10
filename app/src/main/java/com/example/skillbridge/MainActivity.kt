@@ -41,7 +41,7 @@ import android.widget.Toast
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.skillbridge.data.FirebaseAuthManager
 import kotlinx.coroutines.launch
-
+import com.example.skillbridge.ui.customer.CustomerBookingsScreen
 private val Navy = Color(0xFF101D3A)
 private val Teal = Color(0xFF12A594)
 private val LightText = Color(0xFFD4DEEE)
@@ -175,7 +175,19 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
-                        "customer_home" -> CustomerHomeScreen()
+
+                        "customer_home" -> CustomerHomeScreen(
+                            onBookingsClick = {
+                                currentScreen = "customer_bookings"
+                            }
+                        )
+
+                        "customer_bookings" -> CustomerBookingsScreen(
+                            onHomeClick = {
+                                currentScreen = "customer_home"
+                            }
+                        )
+
 
                         "worker_dashboard" -> WorkerDashboardScreen()
                     }
