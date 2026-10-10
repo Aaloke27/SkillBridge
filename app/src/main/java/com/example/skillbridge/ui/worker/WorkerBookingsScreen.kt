@@ -30,8 +30,14 @@ import androidx.compose.material3.Button
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import androidx.compose.runtime.rememberCoroutineScope
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.platform.LocalContext
 @Composable
 fun WorkerBookingsScreen() {
+    val context = LocalContext.current
     var bookings by remember { mutableStateOf<List<Booking>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -137,6 +143,51 @@ fun WorkerBookingsScreen() {
                                     text = "Request: ${booking.description}",
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
+
+                                Button(
+                                    onClick = {
+                                        val latitude = booking.customerLatitude
+                                        val longitude = booking.customerLongitude
+
+                                        if (latitude != null && longitude != null) {
+                                            val navigationUri = Uri.parse(
+                                                "google.navigation:q=$latitude,$longitude"
+                                            )
+
+                                            val intent = Intent(
+                                                Intent.ACTION_VIEW,
+                                                navigationUri
+                                            ).apply {
+                                                setPackage("com.google.android.apps.maps")
+                                            }
+
+                                            try {
+                                                context.startActivity(intent)
+                                            } catch (e: android.content.ActivityNotFoundException) {
+                                                val fallbackUri = Uri.parse(
+                                                    "https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude"
+                                                )
+
+                                                context.startActivity(
+                                                    Intent(Intent.ACTION_VIEW, fallbackUri)
+                                                )
+                                            }
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "Customer GPS location is unavailable",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    },
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF12A594)
+                                    )
+                                ) {
+                                    Text("📍 Navigate to Customer")
+                                }
+
 
                                 val statusColor = when (booking.status) {
                                     "Accepted" -> Color(0xFF16834A)

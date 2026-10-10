@@ -47,6 +47,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+
 
 
 private val WorkerNavy = Color(0xFF101D3A)
@@ -509,6 +514,7 @@ private fun JobRequestCard(
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -532,6 +538,60 @@ private fun JobRequestCard(
                 text = "Customer: ${request.customerName}",
                 color = Color.DarkGray
             )
+
+            Spacer(modifier = Modifier.height(5.dp))
+
+            Text(
+                text = "📍 Service location: ${
+                    request.customerArea.ifBlank { "Location unavailable" }
+                }",
+                color = WorkerTeal,
+                fontWeight = FontWeight.SemiBold
+            )
+
+
+            Button(
+                onClick = {
+                    val latitude = request.customerLatitude
+                    val longitude = request.customerLongitude
+
+                    if (latitude != null && longitude != null) {
+                        val navigationUri = Uri.parse(
+                            "google.navigation:q=$latitude,$longitude"
+                        )
+
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            navigationUri
+                        ).apply {
+                            setPackage("com.google.android.apps.maps")
+                        }
+
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            val fallbackUri = Uri.parse(
+                                "https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude"
+                            )
+
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, fallbackUri)
+                            )
+                        }
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Customer GPS location is unavailable",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = WorkerTeal
+                )
+            ) {
+                Text("📍 Navigate to Customer")
+            }
 
             Spacer(modifier = Modifier.height(5.dp))
 

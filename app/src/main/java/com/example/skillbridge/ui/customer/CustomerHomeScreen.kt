@@ -90,6 +90,15 @@ fun CustomerHomeScreen(
         mutableStateOf("Detecting location...")
     }
 
+    var customerLatitude by remember {
+        mutableStateOf<Double?>(null)
+    }
+
+    var customerLongitude by remember {
+        mutableStateOf<Double?>(null)
+    }
+
+
     val locationPermissionLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -116,7 +125,13 @@ fun CustomerHomeScreen(
             val location = com.example.skillbridge.location.LocationHelper
                 .getCurrentLocation(context)
 
+
             if (location != null) {
+                // Save the GPS coordinates
+                customerLatitude = location.latitude
+                customerLongitude = location.longitude
+
+                // Keep existing locality detection
                 val area = com.example.skillbridge.location.LocationHelper
                     .getLocality(
                         context,
@@ -128,6 +143,7 @@ fun CustomerHomeScreen(
             } else {
                 currentArea = "Location unavailable"
             }
+
         }
     }
 
@@ -606,7 +622,7 @@ fun CustomerHomeScreen(
                                     ?.takeIf { it.isNotBlank() }
                                     ?: "Customer"
 
-                                // Create the booking with the real customer name
+
                                 val result = bookingRepository.createBooking(
                                     Booking(
                                         customerId = customerId,
@@ -614,9 +630,13 @@ fun CustomerHomeScreen(
                                         workerId = workerId,
                                         workerName = worker.name,
                                         profession = worker.profession,
-                                        description = description.trim()
+                                        description = description.trim(),
+                                        customerArea = currentArea,
+                                        customerLatitude = customerLatitude,
+                                        customerLongitude = customerLongitude
                                     )
                                 )
+
 
                                 result.onSuccess {
                                     Toast.makeText(

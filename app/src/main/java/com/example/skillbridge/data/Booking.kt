@@ -10,5 +10,8 @@ data class Booking(
     val profession: String = "",
     val description: String = "",
     val status: String = "Pending",
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    val customerArea: String = "",
+    val customerLatitude: Double? = null,
+    val customerLongitude: Double? = null
 )
