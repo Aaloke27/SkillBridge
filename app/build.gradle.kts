@@ -64,4 +64,9 @@ dependencies {
 
 //    icons
     implementation("androidx.compose.material:material-icons-extended")
+
+//    For loacation
+
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
 }

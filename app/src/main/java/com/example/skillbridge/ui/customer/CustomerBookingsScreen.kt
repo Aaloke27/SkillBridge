@@ -30,6 +30,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.example.skillbridge.data.Booking
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -49,7 +57,16 @@ fun CustomerBookingsScreen(
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
-
+    var selectedIds by remember {
+        mutableStateOf<Set<String>>(emptySet())
+    }
+    var showDeleteConfirmation by remember {
+        mutableStateOf(false)
+    }
+    var isDeleting by remember {
+        mutableStateOf(false)
+    }
+    val scope = rememberCoroutineScope()
     val auth = remember { FirebaseAuth.getInstance() }
     val firestore = remember { FirebaseFirestore.getInstance() }
 
@@ -144,40 +161,194 @@ fun CustomerBookingsScreen(
             }
 
             else -> {
+                if (selectedIds.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${selectedIds.size} selected",
+                            color = BookingsNavy,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Row {
+                            TextButton(
+                                onClick = { selectedIds = emptySet() }
+                            ) {
+                                Text("Cancel")
+                            }
+
+                            Button(
+                                onClick = {
+                                    showDeleteConfirmation = true
+                                },
+                                enabled = !isDeleting,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.Red
+                                )
+                            ) {
+                                Text("Delete")
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(
                         items = bookings,
                         key = { it.id }
                     ) { booking ->
-                        BookingCard(booking)
+                        BookingCard(
+                            booking = booking,
+                            isSelected = booking.id in selectedIds,
+                            onClick = {
+                                if (booking.status in listOf("Completed", "Rejected")) {
+                                    if (selectedIds.isNotEmpty()) {
+                                        selectedIds = if (booking.id in selectedIds) {
+                                            selectedIds - booking.id
+                                        } else {
+                                            selectedIds + booking.id
+                                        }
+                                    }
+                                }
+                            },
+                            onLongClick = {
+                                if (booking.status in listOf("Completed", "Rejected")) {
+                                    selectedIds = selectedIds + booking.id
+                                }
+                            }
+                        )
                     }
                 }
 
                 TextButton(
-                    onClick = { refreshKey++ }
+                    onClick = { refreshKey++ },
+                    enabled = !isDeleting,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
                     Text("Refresh bookings", color = BookingsTeal)
                 }
             }
         }
     }
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeleting) {
+                    showDeleteConfirmation = false
+                }
+            },
+            title = {
+                Text("Delete selected bookings?")
+            },
+            text = {
+                Text(
+                    "Permanently delete ${selectedIds.size} " +
+                            "completed or rejected booking(s)? This cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        scope.launch {
+                            isDeleting = true
+                            error = null
+
+                            try {
+                                val batch = firestore.batch()
+
+                                selectedIds.forEach { id ->
+                                    batch.delete(
+                                        firestore.collection("bookings")
+                                            .document(id)
+                                    )
+                                }
+
+                                batch.commit().await()
+
+                                bookings = bookings.filterNot {
+                                    it.id in selectedIds
+                                }
+
+                                selectedIds = emptySet()
+                                showDeleteConfirmation = false
+                            } catch (e: Exception) {
+                                error = e.localizedMessage
+                                    ?: "Couldn't delete bookings."
+                                showDeleteConfirmation = false
+                            } finally {
+                                isDeleting = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (isDeleting) "Deleting..." else "Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        showDeleteConfirmation = false
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun BookingCard(booking: Booking) {
+private fun BookingCard(
+    booking: Booking,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
     val statusColor = when (booking.status) {
         "Accepted" -> Color(0xFF16834A)
         "Rejected" -> Color(0xFFD32F2F)
+        "Completed" -> Color(0xFF16834A)
         else -> Color(0xFFB7791F)
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (isSelected) {
+                    Modifier.border(
+                        2.dp,
+                        BookingsTeal,
+                        RoundedCornerShape(16.dp)
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isSelected) {
+                Color(0xFFE1F5F1)
+            } else {
+                Color.White
+            }
         )
     ) {
         Column(
@@ -217,6 +388,22 @@ private fun BookingCard(booking: Booking) {
                     text = booking.status,
                     fontWeight = FontWeight.Bold,
                     color = statusColor
+                )
+            }
+
+            if (isSelected) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "✓ Selected",
+                    color = BookingsTeal,
+                    fontWeight = FontWeight.Bold
+                )
+            } else if (booking.status in listOf("Completed", "Rejected")) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Hold to select for deletion",
+                    color = Color.Gray,
+                    fontSize = 12.sp
                 )
             }
         }

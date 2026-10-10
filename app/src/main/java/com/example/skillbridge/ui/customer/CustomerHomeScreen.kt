@@ -51,6 +51,14 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+
 
 private val HomeNavy = Color(0xFF101D3A)
 private val HomeTeal = Color(0xFF12A594)
@@ -61,11 +69,14 @@ private data class ServiceCategory(
     val emoji: String
 )
 
+
 private data class Worker(
     val uid: String,
     val name: String,
-    val profession: String
+    val profession: String,
+    val serviceArea: String
 )
+
 
 @Composable
 fun CustomerHomeScreen(
@@ -73,13 +84,60 @@ fun CustomerHomeScreen(
     onProfileClick: () -> Unit = {}
 ) {
 
+    val context = LocalContext.current
+
+    var currentArea by remember {
+        mutableStateOf("Detecting location...")
+    }
+
+    val locationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) {
+
+
+        }
+
+
+    LaunchedEffect(Unit) {
+        val fineGranted =
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+        val coarseGranted =
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+        if (fineGranted || coarseGranted) {
+            val location = com.example.skillbridge.location.LocationHelper
+                .getCurrentLocation(context)
+
+            if (location != null) {
+                val area = com.example.skillbridge.location.LocationHelper
+                    .getLocality(
+                        context,
+                        location.latitude,
+                        location.longitude
+                    )
+
+                currentArea = area ?: "Location unavailable"
+            } else {
+                currentArea = "Location unavailable"
+            }
+        }
+    }
+
+
     var selectedWorker by remember { mutableStateOf<Worker?>(null) }
     var isBooking by remember { mutableStateOf(false) }
     var bookingError by remember { mutableStateOf<String?>(null) }
 
     val bookingRepository = remember { BookingRepository() }
     val auth = remember { FirebaseAuth.getInstance() }
-    val context = LocalContext.current
     var searchText by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
     var selectedTab by remember { mutableStateOf("Home") }
@@ -122,12 +180,16 @@ fun CustomerHomeScreen(
                             role == "Worker" &&
                             isAvailable
                         ) {
+
                             Worker(
                                 uid = document.id,
                                 name = name,
                                 profession = document.getString("profession")
-                                    ?: "Other"
+                                    ?: "Other",
+                                serviceArea = document.getString("serviceArea")
+                                    ?: ""
                             )
+
                         } else {
                             null
                         }
@@ -142,8 +204,15 @@ fun CustomerHomeScreen(
     }
 
 
-    // Search by name or profession, then apply the selected category.
+    // Search by name or profession and location, then apply the selected category.
+
     val filteredWorkers = workers.filter { worker ->
+        val matchesArea =
+            currentArea != "Detecting location..." &&
+                    currentArea != "Location unavailable" &&
+                    worker.serviceArea.isNotBlank() &&
+                    worker.serviceArea.equals(currentArea, ignoreCase = true)
+
         val matchesSearch =
             worker.name.contains(searchText.trim(), ignoreCase = true) ||
                     worker.profession.contains(searchText.trim(), ignoreCase = true)
@@ -152,8 +221,9 @@ fun CustomerHomeScreen(
             selectedCategory == "All" ||
                     worker.profession.equals(selectedCategory, ignoreCase = true)
 
-        matchesSearch && matchesCategory
+        matchesArea && matchesSearch && matchesCategory
     }
+
 
     Column(
         modifier = Modifier
@@ -221,7 +291,7 @@ fun CustomerHomeScreen(
                             color = Color.Gray
                         )
                         Text(
-                            text = "Khardah, West Bengal",
+                            text = currentArea,
                             fontWeight = FontWeight.SemiBold,
                             color = HomeNavy
                         )

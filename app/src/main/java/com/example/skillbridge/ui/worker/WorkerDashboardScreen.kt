@@ -37,6 +37,18 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import androidx.compose.runtime.DisposableEffect
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
+
 private val WorkerNavy = Color(0xFF101D3A)
 private val WorkerTeal = Color(0xFF12A594)
 private val WorkerBackground = Color(0xFFF4F7FB)
@@ -45,6 +57,13 @@ private val WorkerBackground = Color(0xFFF4F7FB)
 
 @Composable
 fun WorkerDashboardScreen() {
+
+    val context = LocalContext.current
+    var message by remember { mutableStateOf("") }
+    var workerArea by remember {
+        mutableStateOf("Detecting location...")
+    }
+
     var isAvailable by remember { mutableStateOf(true) }
     var isAvailabilityLoaded by remember { mutableStateOf(false) }
 
@@ -63,10 +82,77 @@ fun WorkerDashboardScreen() {
     val auth = remember { FirebaseAuth.getInstance() }
     val firestore = remember { FirebaseFirestore.getInstance() }
     val scope = rememberCoroutineScope()
+    val locationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+
+            val granted = permissions.values.any { it }
+
+            if (granted) {
+                val workerId = auth.currentUser?.uid
+
+                if (workerId != null) {
+                    scope.launch {
+                        try {
+                            val location =
+                                com.example.skillbridge.location.LocationHelper
+                                    .getCurrentLocation(context)
+
+                            if (location != null) {
+                                val area =
+                                    com.example.skillbridge.location.LocationHelper
+                                        .getLocality(
+                                            context,
+                                            location.latitude,
+                                            location.longitude
+                                        )
+
+                                if (!area.isNullOrBlank()) {
+                                    workerArea = area
+
+
+                                    firestore.collection("workerProfiles")
+                                        .document(workerId)
+                                        .set(
+                                            mapOf("serviceArea" to area),
+                                            com.google.firebase.firestore.SetOptions.merge()
+                                        )
+                                        .await()
+
+                                    message = "Service area saved: $area"
+
+                                }
+                            }
+                        } catch (e: Exception) {
+                            requestError = "Save failed: ${e.localizedMessage}"
+                        }
+                    }
+                }
+            }
+        }
 
     LaunchedEffect(Unit) {
-        val workerId = auth.currentUser?.uid
+        val fineGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
 
+        val coarseGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fineGranted && !coarseGranted) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+
+        val workerId = FirebaseAuth.getInstance().currentUser?.uid
         if (workerId != null) {
             try {
                 val profile = firestore.collection("workerProfiles")
@@ -75,8 +161,41 @@ fun WorkerDashboardScreen() {
                     .await()
 
                 isAvailable = profile.getBoolean("isAvailable") ?: true
+
+                val fineGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                val coarseGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (fineGranted || coarseGranted) {
+                    val location = com.example.skillbridge.location.LocationHelper
+                        .getCurrentLocation(context)
+
+                    if (location != null) {
+                        val detectedArea =
+                            com.example.skillbridge.location.LocationHelper.getLocality(
+                                context,
+                                location.latitude,
+                                location.longitude
+                            )
+
+                        if (!detectedArea.isNullOrBlank()) {
+                            workerArea = detectedArea
+
+                            firestore.collection("workerProfiles")
+                                .document(workerId)
+                                .update("serviceArea", detectedArea)
+                                .await()
+                        }
+                    }
+                }
             } catch (e: Exception) {
-                requestError = "Couldn't load your availability."
+                requestError = "Error: ${e.localizedMessage}"
             }
         }
 
@@ -123,7 +242,6 @@ fun WorkerDashboardScreen() {
 
     var acceptedJobs by remember { mutableStateOf(0) }
     var completedJobs by remember { mutableStateOf(5) }
-    var message by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -146,6 +264,13 @@ fun WorkerDashboardScreen() {
             fontWeight = FontWeight.Bold,
             color = WorkerNavy
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "📍 Your service area: $workerArea",
+            color = Color.Gray,
+            fontSize = 14.sp
+        )
+
 
         Text(
             text = "Manage your work and service requests",
