@@ -37,11 +37,18 @@ import com.example.skillbridge.ui.theme.SkillBridgeTheme
 import com.example.skillbridge.ui.auth.LoginScreen
 import com.example.skillbridge.ui.customer.CustomerHomeScreen
 import com.example.skillbridge.ui.worker.WorkerDashboardScreen
+import android.widget.Toast
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.skillbridge.data.FirebaseAuthManager
+import kotlinx.coroutines.launch
+
 private val Navy = Color(0xFF101D3A)
 private val Teal = Color(0xFF12A594)
 private val LightText = Color(0xFFD4DEEE)
 
+
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -52,13 +59,22 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf("welcome")
                 }
 
+                val authManager = remember {
+                    FirebaseAuthManager()
+                }
+
+                val scope = rememberCoroutineScope()
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = if (currentScreen == "welcome") Navy
-                    else Color.White
+                    color = if (currentScreen == "welcome") {
+                        Navy
+                    } else {
+                        Color.White
+                    }
                 ) {
-
                     when (currentScreen) {
+
                         "welcome" -> WelcomeScreen(
                             onCreateAccountClick = {
                                 currentScreen = "register"
@@ -75,13 +91,42 @@ class MainActivity : ComponentActivity() {
                             onSignInClick = {
                                 currentScreen = "login"
                             },
-                            onRegisterClick = { name, email, password, role ->
-                                currentScreen = if (role == "Customer") {
-                                    "customer_home"
-                                } else {
-                                    "worker_dashboard"
+
+                            onRegisterClick = { name, email, password, role, profession ->
+
+                                scope.launch {
+                                    val result = authManager.register(
+                                        name = name,
+                                        email = email,
+                                        password = password,
+                                        role = role,
+                                        profession = profession
+                                    )
+
+                                    result.onSuccess {
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            "Account created successfully!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+
+                                        currentScreen = if (role == "Customer") {
+                                            "customer_home"
+                                        } else {
+                                            "worker_dashboard"
+                                        }
+                                    }
+
+                                    result.onFailure { error ->
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            error.localizedMessage ?: "Registration failed.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                             }
+
                         )
 
                         "login" -> LoginScreen(
@@ -92,19 +137,54 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = "register"
                             },
                             onLoginClick = { email, password ->
-                                // Firebase login will be added later.
+                                scope.launch {
+                                    val loginResult = authManager.login(
+                                        email = email,
+                                        password = password
+                                    )
+
+                                    if (loginResult.isSuccess) {
+                                        val uid = loginResult.getOrThrow()
+                                        val roleResult = authManager.getUserRole(uid)
+
+                                        if (roleResult.isSuccess) {
+                                            currentScreen = when (roleResult.getOrThrow()) {
+                                                "Customer" -> "customer_home"
+                                                "Worker" -> "worker_dashboard"
+                                                else -> "welcome"
+                                            }
+                                        } else {
+                                            authManager.signOut()
+
+                                            Toast.makeText(
+                                                this@MainActivity,
+                                                roleResult.exceptionOrNull()?.localizedMessage
+                                                    ?: "Could not load your profile.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    } else {
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            loginResult.exceptionOrNull()?.localizedMessage
+                                                ?: "Login failed.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
                             }
                         )
 
                         "customer_home" -> CustomerHomeScreen()
+
                         "worker_dashboard" -> WorkerDashboardScreen()
                     }
-
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun WelcomeScreen(

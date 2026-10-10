@@ -1,5 +1,7 @@
+
 package com.example.skillbridge.ui.customer
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 private val HomeNavy = Color(0xFF101D3A)
 private val HomeTeal = Color(0xFF12A594)
@@ -26,10 +31,9 @@ private data class ServiceCategory(
 )
 
 private data class Worker(
+    val uid: String,
     val name: String,
-    val profession: String,
-    val rating: String,
-    val price: String
+    val profession: String
 )
 
 @Composable
@@ -48,21 +52,59 @@ fun CustomerHomeScreen(
         ServiceCategory("Cleaner", "🧹")
     )
 
-    val workers = listOf(
-        Worker("Rahul Das", "Electrician", "4.8", "₹300"),
-        Worker("Amit Roy", "Plumber", "4.7", "₹250"),
-        Worker("Suman Pal", "Carpenter", "4.9", "₹400"),
-        Worker("Ravi Singh", "Cleaner", "4.6", "₹200")
-    )
+    var workers by remember { mutableStateOf<List<Worker>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
 
+    val scope = rememberCoroutineScope()
+    val firestore = remember { FirebaseFirestore.getInstance() }
+
+    fun loadWorkers() {
+        scope.launch {
+            isLoading = true
+            loadError = null
+
+            try {
+                workers = firestore.collection("workerProfiles")
+                    .get()
+                    .await()
+                    .documents
+                    .mapNotNull { document ->
+                        val name = document.getString("name")
+                        val role = document.getString("role")
+
+                        if (name != null && role == "Worker") {
+                            Worker(
+                                uid = document.id,
+                                name = name,
+                                profession = document.getString("profession")
+                                    ?: "Other"
+                            )
+                        } else {
+                            null
+                        }
+                    }
+            } catch (e: Exception) {
+                loadError = "Couldn't load workers. Please try again."
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadWorkers()
+    }
+
+    // Search by name or profession, then apply the selected category.
     val filteredWorkers = workers.filter { worker ->
         val matchesSearch =
-            worker.name.contains(searchText, ignoreCase = true) ||
-                    worker.profession.contains(searchText, ignoreCase = true)
+            worker.name.contains(searchText.trim(), ignoreCase = true) ||
+                    worker.profession.contains(searchText.trim(), ignoreCase = true)
 
         val matchesCategory =
             selectedCategory == "All" ||
-                    worker.profession == selectedCategory
+                    worker.profession.equals(selectedCategory, ignoreCase = true)
 
         matchesSearch && matchesCategory
     }
@@ -122,11 +164,10 @@ fun CustomerHomeScreen(
             }
 
             item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("📍", fontSize = 20.sp)
                     Spacer(Modifier.width(8.dp))
+
                     Column {
                         Text(
                             text = "Your location",
@@ -166,7 +207,7 @@ fun CustomerHomeScreen(
                             decorationBox = { innerTextField ->
                                 if (searchText.isEmpty()) {
                                     Text(
-                                        "Search workers or services",
+                                        text = "Search workers or services",
                                         color = Color.Gray,
                                         fontSize = 14.sp
                                     )
@@ -188,7 +229,9 @@ fun CustomerHomeScreen(
             }
 
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -197,13 +240,17 @@ fun CustomerHomeScreen(
                             category = categories[0],
                             selected = selectedCategory == "Electrician",
                             modifier = Modifier.weight(1f)
-                        ) { selectedCategory = "Electrician" }
+                        ) {
+                            selectedCategory = "Electrician"
+                        }
 
                         CategoryCard(
                             category = categories[1],
                             selected = selectedCategory == "Plumber",
                             modifier = Modifier.weight(1f)
-                        ) { selectedCategory = "Plumber" }
+                        ) {
+                            selectedCategory = "Plumber"
+                        }
                     }
 
                     Row(
@@ -214,13 +261,17 @@ fun CustomerHomeScreen(
                             category = categories[2],
                             selected = selectedCategory == "Carpenter",
                             modifier = Modifier.weight(1f)
-                        ) { selectedCategory = "Carpenter" }
+                        ) {
+                            selectedCategory = "Carpenter"
+                        }
 
                         CategoryCard(
                             category = categories[3],
                             selected = selectedCategory == "Cleaner",
                             modifier = Modifier.weight(1f)
-                        ) { selectedCategory = "Cleaner" }
+                        ) {
+                            selectedCategory = "Cleaner"
+                        }
                     }
 
                     TextButton(
@@ -233,23 +284,74 @@ fun CustomerHomeScreen(
 
             item {
                 Text(
-                    text = "Available workers",
+                    text = if (selectedCategory == "All") {
+                        "Available workers"
+                    } else {
+                        "Available ${selectedCategory.lowercase()}s"
+                    },
                     fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     color = HomeNavy
                 )
             }
 
-            if (filteredWorkers.isEmpty()) {
-                item {
-                    Text(
-                        text = "No matching workers found.",
-                        color = Color.Gray
-                    )
+            when {
+                isLoading -> {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = HomeTeal)
+                        }
+                    }
                 }
-            } else {
-                items(filteredWorkers) { worker ->
-                    WorkerCard(worker = worker)
+
+                loadError != null -> {
+                    item {
+                        Column {
+                            Text(
+                                text = loadError!!,
+                                color = MaterialTheme.colorScheme.error
+                            )
+
+                            TextButton(onClick = { loadWorkers() }) {
+                                Text("Retry", color = HomeTeal)
+                            }
+                        }
+                    }
+                }
+
+                filteredWorkers.isEmpty() -> {
+                    item {
+                        Text(
+                            text = when {
+                                workers.isEmpty() ->
+                                    "No workers registered yet."
+
+                                selectedCategory != "All" ->
+                                    "No ${selectedCategory.lowercase()}s found. Try another category."
+
+                                searchText.isNotBlank() ->
+                                    "No workers match your search."
+
+                                else ->
+                                    "No matching workers found."
+                            },
+                            color = Color.Gray
+                        )
+                    }
+                }
+
+                else -> {
+                    items(
+                        items = filteredWorkers,
+                        key = { it.uid }
+                    ) { worker ->
+                        WorkerCard(worker = worker)
+                    }
                 }
             }
         }
@@ -270,6 +372,7 @@ fun CustomerHomeScreen(
             ) {
                 selectedTab = "Home"
                 selectedCategory = "All"
+                searchText = ""
             }
 
             BottomTab(
@@ -305,8 +408,10 @@ private fun CategoryCard(
         shape = RoundedCornerShape(16.dp),
         color = if (selected) Color(0xFFD9F7F0) else Color.White,
         border = if (selected) {
-            androidx.compose.foundation.BorderStroke(1.dp, HomeTeal)
-        } else null
+            BorderStroke(1.dp, HomeTeal)
+        } else {
+            null
+        }
     ) {
         Column(
             modifier = Modifier.padding(vertical = 18.dp),
@@ -314,6 +419,7 @@ private fun CategoryCard(
         ) {
             Text(category.emoji, fontSize = 28.sp)
             Spacer(Modifier.height(8.dp))
+
             Text(
                 text = category.name,
                 fontSize = 13.sp,
@@ -340,7 +446,7 @@ private fun WorkerCard(worker: Worker) {
                 color = Color(0xFFD9F7F0)
             ) {
                 Text(
-                    text = worker.name.first().toString(),
+                    text = worker.name.firstOrNull()?.uppercase() ?: "?",
                     modifier = Modifier.padding(
                         horizontal = 18.dp,
                         vertical = 14.dp
@@ -355,24 +461,20 @@ private fun WorkerCard(worker: Worker) {
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    worker.name,
+                    text = worker.name,
                     fontWeight = FontWeight.Bold,
                     color = HomeNavy
                 )
+
                 Text(
-                    worker.profession,
+                    text = worker.profession,
                     color = Color.Gray,
                     fontSize = 13.sp
-                )
-                Text(
-                    "⭐ ${worker.rating}  •  From ${worker.price}",
-                    color = HomeNavy,
-                    fontSize = 12.sp
                 )
             }
 
             Text(
-                text = "View",
+                text = "Worker",
                 color = HomeTeal,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
@@ -399,6 +501,7 @@ private fun BottomTab(
             color = if (selected) HomeTeal else Color.Gray,
             fontSize = 22.sp
         )
+
         Text(
             text = label,
             color = if (selected) HomeTeal else Color.Gray,

@@ -61,7 +61,7 @@ fun WorkerDashboardScreen() {
             ),
             JobRequest(
                 3, "Amit Roy", "Wiring Repair",
-                "Titagarh", "₹700"
+                "Barrackpore", "₹800"
             )
         )
     }
@@ -126,9 +126,9 @@ fun WorkerDashboardScreen() {
 
                     Text(
                         text = if (isAvailable) {
-                            "You're available for work"
+                            "You're Online"
                         } else {
-                            "You're currently unavailable"
+                            "You're currently offline, \n go online to get customers"
                         },
                         color = Color.LightGray,
                         fontSize = 12.sp
