@@ -36,7 +36,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-
+import androidx.compose.runtime.DisposableEffect
 private val WorkerNavy = Color(0xFF101D3A)
 private val WorkerTeal = Color(0xFF12A594)
 private val WorkerBackground = Color(0xFFF4F7FB)
@@ -63,8 +63,10 @@ fun WorkerDashboardScreen() {
     val auth = remember { FirebaseAuth.getInstance() }
     val firestore = remember { FirebaseFirestore.getInstance() }
     val scope = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
         val workerId = auth.currentUser?.uid
+
         if (workerId != null) {
             try {
                 val profile = firestore.collection("workerProfiles")
@@ -75,36 +77,49 @@ fun WorkerDashboardScreen() {
                 isAvailable = profile.getBoolean("isAvailable") ?: true
             } catch (e: Exception) {
                 requestError = "Couldn't load your availability."
-            } finally {
-                isAvailabilityLoaded = true
             }
-        } else {
-            isAvailabilityLoaded = true
         }
+
+        isAvailabilityLoaded = true
+    }
+
+    DisposableEffect(Unit) {
+        val workerId = auth.currentUser?.uid
 
         if (workerId.isNullOrBlank()) {
             requestError = "Please sign in again."
             isLoadingRequests = false
-        } else {
-            try {
-                val snapshot = firestore.collection("bookings")
-                    .whereEqualTo("workerId", workerId)
-                    .whereEqualTo("status", "Pending")
-                    .get()
-                    .await()
 
-                requests = snapshot.documents.mapNotNull { document ->
-                    document.toObject(Booking::class.java)
-                        ?.copy(id = document.id)
+            onDispose { }
+        } else {
+            val registration = firestore.collection("bookings")
+                .whereEqualTo("workerId", workerId)
+                .whereEqualTo("status", "Pending")
+                .addSnapshotListener { snapshot, error ->
+
+                    if (error != null) {
+                        requestError = "Failed to listen for booking requests."
+                        isLoadingRequests = false
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null) {
+                        requests = snapshot.documents.mapNotNull { document ->
+                            document.toObject(Booking::class.java)
+                                ?.copy(id = document.id)
+                        }
+
+                        requestError = null
+                        isLoadingRequests = false
+                    }
                 }
-            } catch (e: Exception) {
-                requestError = e.localizedMessage
-                    ?: "Failed to load booking requests."
-            } finally {
-                isLoadingRequests = false
+
+            onDispose {
+                registration.remove()
             }
         }
     }
+
 
     var acceptedJobs by remember { mutableStateOf(0) }
     var completedJobs by remember { mutableStateOf(5) }
