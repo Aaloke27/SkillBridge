@@ -46,6 +46,7 @@ private val WorkerBackground = Color(0xFFF4F7FB)
 @Composable
 fun WorkerDashboardScreen() {
     var isAvailable by remember { mutableStateOf(true) }
+    var isAvailabilityLoaded by remember { mutableStateOf(false) }
 
     var requests by remember {
         mutableStateOf<List<Booking>>(emptyList())
@@ -64,6 +65,22 @@ fun WorkerDashboardScreen() {
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         val workerId = auth.currentUser?.uid
+        if (workerId != null) {
+            try {
+                val profile = firestore.collection("workerProfiles")
+                    .document(workerId)
+                    .get()
+                    .await()
+
+                isAvailable = profile.getBoolean("isAvailable") ?: true
+            } catch (e: Exception) {
+                requestError = "Couldn't load your availability."
+            } finally {
+                isAvailabilityLoaded = true
+            }
+        } else {
+            isAvailabilityLoaded = true
+        }
 
         if (workerId.isNullOrBlank()) {
             requestError = "Please sign in again."
@@ -160,12 +177,32 @@ fun WorkerDashboardScreen() {
 
                 Switch(
                     checked = isAvailable,
-                    onCheckedChange = {
-                        isAvailable = it
-                        message = if (it) {
-                            "You are now available."
-                        } else {
-                            "You are now unavailable."
+                    enabled = isAvailabilityLoaded,
+                    onCheckedChange = { newValue ->
+                        val workerId = auth.currentUser?.uid
+
+                        if (workerId != null) {
+                            scope.launch {
+                                try {
+                                    firestore.collection("workerProfiles")
+                                        .document(workerId)
+                                        .set(
+                                            mapOf("isAvailable" to newValue),
+                                            com.google.firebase.firestore.SetOptions.merge()
+                                        )
+                                        .await()
+
+                                    isAvailable = newValue
+                                    message = if (newValue) {
+                                        "You are now available."
+                                    } else {
+                                        "You are now unavailable."
+                                    }
+                                } catch (e: Exception) {
+                                    message = e.localizedMessage
+                                        ?: "Couldn't update availability."
+                                }
+                            }
                         }
                     }
                 )

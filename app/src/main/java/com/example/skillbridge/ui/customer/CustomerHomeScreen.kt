@@ -31,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,21 +98,30 @@ fun CustomerHomeScreen(
     val scope = rememberCoroutineScope()
     val firestore = remember { FirebaseFirestore.getInstance() }
 
-    fun loadWorkers() {
-        scope.launch {
-            isLoading = true
-            loadError = null
 
-            try {
-                workers = firestore.collection("workerProfiles")
-                    .get()
-                    .await()
-                    .documents
-                    .mapNotNull { document ->
+    DisposableEffect(Unit) {
+        isLoading = true
+        loadError = null
+
+        val registration = firestore.collection("workerProfiles")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    loadError = "Couldn't load workers. Please try again."
+                    isLoading = false
+                    return@addSnapshotListener
+                }
+
+                workers = snapshot?.documents
+                    ?.mapNotNull { document ->
                         val name = document.getString("name")
                         val role = document.getString("role")
+                        val isAvailable =
+                            document.getBoolean("isAvailable") ?: true
 
-                        if (name != null && role == "Worker") {
+                        if (name != null &&
+                            role == "Worker" &&
+                            isAvailable
+                        ) {
                             Worker(
                                 uid = document.id,
                                 name = name,
@@ -121,18 +131,26 @@ fun CustomerHomeScreen(
                         } else {
                             null
                         }
-                    }
-            } catch (e: Exception) {
-                loadError = "Couldn't load workers. Please try again."
-            } finally {
+                    } ?: emptyList()
+
                 isLoading = false
             }
+
+        onDispose {
+            registration.remove()
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadWorkers()
-    }
+
+
+
+
+
+
+
+
+
+
 
     // Search by name or profession, then apply the selected category.
     val filteredWorkers = workers.filter { worker ->
@@ -354,8 +372,9 @@ fun CustomerHomeScreen(
                                 text = loadError!!,
                                 color = MaterialTheme.colorScheme.error
                             )
-
-                            TextButton(onClick = { loadWorkers() }) {
+                            TextButton(onClick = {
+                                loadError = null
+                            }) {
                                 Text("Retry", color = HomeTeal)
                             }
                         }
