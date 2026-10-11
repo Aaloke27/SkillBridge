@@ -1,5 +1,9 @@
 package com.example.skillbridge.ui.worker
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,13 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,38 +31,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.skillbridge.data.Booking
+import com.example.skillbridge.ui.worker.components.JobRequestCard
+import com.example.skillbridge.ui.worker.components.SummaryCard
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import androidx.compose.runtime.DisposableEffect
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
-
-
-
-private val WorkerNavy = Color(0xFF101D3A)
-private val WorkerTeal = Color(0xFF12A594)
+val WorkerNavy = Color(0xFF101D3A)
+val WorkerTeal = Color(0xFF12A594)
 private val WorkerBackground = Color(0xFFF4F7FB)
-
-
-
 @Composable
 fun WorkerDashboardScreen() {
 
@@ -471,169 +457,3 @@ fun WorkerDashboardScreen() {
         }
         }
     }
-@Composable
-private fun SummaryCard(
-    title: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Text(
-                text = value,
-                fontSize = 23.sp,
-                fontWeight = FontWeight.Bold,
-                color = WorkerTeal
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = title,
-                fontSize = 11.sp,
-                color = WorkerNavy
-            )
-        }
-    }
-}
-
-@Composable
-private fun JobRequestCard(
-    request: Booking,
-    onAccept: () -> Unit,
-    onReject: () -> Unit
-) {
-    val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = request.profession,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = WorkerNavy
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Customer: ${request.customerName}",
-                color = Color.DarkGray
-            )
-
-            Spacer(modifier = Modifier.height(5.dp))
-
-            Text(
-                text = "📍 Service location: ${
-                    request.customerArea.ifBlank { "Location unavailable" }
-                }",
-                color = WorkerTeal,
-                fontWeight = FontWeight.SemiBold
-            )
-
-
-            Button(
-                onClick = {
-                    val latitude = request.customerLatitude
-                    val longitude = request.customerLongitude
-
-                    if (latitude != null && longitude != null) {
-                        val navigationUri = Uri.parse(
-                            "google.navigation:q=$latitude,$longitude"
-                        )
-
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            navigationUri
-                        ).apply {
-                            setPackage("com.google.android.apps.maps")
-                        }
-
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: android.content.ActivityNotFoundException) {
-                            val fallbackUri = Uri.parse(
-                                "https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude"
-                            )
-
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, fallbackUri)
-                            )
-                        }
-                    } else {
-                        Toast.makeText(
-                            context,
-                            "Customer GPS location is unavailable",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = WorkerTeal
-                )
-            ) {
-                Text("📍 Navigate to Customer")
-            }
-
-            Spacer(modifier = Modifier.height(5.dp))
-
-            Text(
-                text = "Request: ${request.description}",
-                color = Color.Gray
-            )
-
-            Spacer(modifier = Modifier.height(5.dp))
-
-            Text(
-                text = "Status: ${request.status}",
-                color = WorkerTeal,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = onAccept,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = WorkerTeal
-                    )
-                ) {
-                    Text("Accept")
-                }
-
-                Button(
-                    onClick = onReject,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = WorkerNavy
-                    )
-                ) {
-                    Text("Decline")
-                }
-            }
-        }
-    }
-}
-

@@ -1,10 +1,12 @@
 
 package com.example.skillbridge.ui.customer
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -45,38 +46,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.skillbridge.data.Booking
 import com.example.skillbridge.data.BookingRepository
+import com.example.skillbridge.ui.customer.components.BottomTab
+import com.example.skillbridge.ui.customer.components.CategoryCard
+import com.example.skillbridge.ui.customer.components.WorkerCard
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
-
-
-private val HomeNavy = Color(0xFF101D3A)
-private val HomeTeal = Color(0xFF12A594)
+import com.example.skillbridge.data.ServiceCategory
+import com.example.skillbridge.data.Worker
+val HomeNavy = Color(0xFF101D3A)
+val HomeTeal = Color(0xFF12A594)
 private val HomeBackground = Color(0xFFF5F7FA)
-
-private data class ServiceCategory(
-    val name: String,
-    val emoji: String
-)
-
-
-private data class Worker(
-    val uid: String,
-    val name: String,
-    val profession: String,
-    val serviceArea: String
-)
-
 
 @Composable
 fun CustomerHomeScreen(
@@ -675,137 +659,6 @@ fun CustomerHomeScreen(
                     Text("Cancel")
                 }
             }
-        )
-    }
-
-}
-
-@Composable
-private fun CategoryCard(
-    category: ServiceCategory,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = if (selected) Color(0xFFD9F7F0) else Color.White,
-        border = if (selected) {
-            BorderStroke(1.dp, HomeTeal)
-        } else {
-            null
-        }
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(category.emoji, fontSize = 28.sp)
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                text = category.name,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = HomeNavy
-            )
-        }
-    }
-}
-
-
-@Composable
-private fun WorkerCard(
-    worker: Worker,
-    onBookClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFD9F7F0)
-            ) {
-                Text(
-                    text = worker.name.firstOrNull()?.uppercase() ?: "?",
-                    modifier = Modifier.padding(
-                        horizontal = 18.dp,
-                        vertical = 14.dp
-                    ),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = HomeTeal
-                )
-            }
-
-            Spacer(Modifier.width(12.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = worker.name,
-                    fontWeight = FontWeight.Bold,
-                    color = HomeNavy
-                )
-
-                Text(
-                    text = worker.profession,
-                    color = Color.Gray,
-                    fontSize = 13.sp
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                Button(
-                    onClick = onBookClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = HomeTeal
-                    ),
-                    contentPadding = PaddingValues(
-                        horizontal = 14.dp,
-                        vertical = 6.dp
-                    )
-                ) {
-                    Text("Book Now")
-                }
-            }
-        }
-    }
-}
-
-
-@Composable
-private fun BottomTab(
-    emoji: String,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = emoji,
-            color = if (selected) HomeTeal else Color.Gray,
-            fontSize = 22.sp
-        )
-
-        Text(
-            text = label,
-            color = if (selected) HomeTeal else Color.Gray,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
 }
