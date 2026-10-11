@@ -180,7 +180,10 @@ fun WorkerDashboardScreen() {
 
                             firestore.collection("workerProfiles")
                                 .document(workerId)
-                                .update("serviceArea", detectedArea)
+                                .set(
+                                    mapOf("serviceArea" to detectedArea),
+                                    com.google.firebase.firestore.SetOptions.merge()
+                                )
                                 .await()
                         }
                     }
