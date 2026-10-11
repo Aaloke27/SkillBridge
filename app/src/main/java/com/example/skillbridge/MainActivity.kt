@@ -37,6 +37,7 @@ import com.example.skillbridge.ui.auth.LoginScreen
 import com.example.skillbridge.ui.customer.CustomerHomeScreen
 import com.example.skillbridge.ui.worker.WorkerDashboardScreen
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.skillbridge.data.FirebaseAuthManager
 import kotlinx.coroutines.launch
@@ -49,6 +50,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.res.painterResource
 import com.google.firebase.auth.FirebaseAuth
 private val Navy = Color(0xFF101D3A)
 private val Teal = Color(0xFF12A594)
@@ -220,20 +222,36 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
+
                         "customer_profile" -> CustomerProfileScreen(
                             onBackClick = {
                                 currentScreen = "customer_home"
                             },
                             onLogoutClick = {
                                 currentScreen = "welcome"
+                            },
+                            onHomeClick = {
+                                currentScreen = "customer_home"
+                            },
+                            onBookingsClick = {
+                                currentScreen = "customer_bookings"
+                            },
+                            onProfileClick = {
+                                currentScreen = "customer_profile"
                             }
                         )
+
+
 
                         "customer_bookings" -> CustomerBookingsScreen(
                             onHomeClick = {
                                 currentScreen = "customer_home"
+                            },
+                            onProfileClick = {
+                                currentScreen = "customer_profile"
                             }
                         )
+
 
 
                         "worker_dashboard" -> WorkerMainScreen(
@@ -249,111 +267,106 @@ class MainActivity : ComponentActivity() {
 }
 
 
+
 @Composable
 fun WelcomeScreen(
     onCreateAccountClick: () -> Unit,
     onSignInClick: () -> Unit
 ) {
+    val backgroundColor = Color(0xFFF4F7FB)
+    val tealColor = Color(0xFF12A594)
+    val navyColor = Color(0xFF101D3A)
+    val mutedColor = Color(0xFF667085)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Navy)
+            .background(backgroundColor)
             .padding(horizontal = 28.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Top spacing
         Spacer(modifier = Modifier.weight(1f))
 
-        Box(
+        // SkillBridge logo
+        Image(
+            painter = painterResource(id = R.drawable.logo),
+            contentDescription = "SkillBridge logo",
             modifier = Modifier
-                .background(
-                    color = Color(0xFFD9F7F0),
-                    shape = RoundedCornerShape(22.dp)
-                )
-                .padding(horizontal = 24.dp, vertical = 18.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "S",
-                color = Teal,
-                fontSize = 42.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "SkillBridge",
-            color = Color.White,
-            fontSize = 34.sp,
-            fontWeight = FontWeight.Bold
+                .fillMaxWidth()
+                .height(150.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
+        // Tagline
         Text(
             text = "Connecting Talent to Opportunity",
-            color = LightText,
-            fontSize = 15.sp,
+            color = navyColor,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
+        // Description
         Text(
             text = "Find trusted local services.\nConnect with skilled professionals.",
-            color = LightText,
-            fontSize = 14.sp,
-            lineHeight = 22.sp,
+            color = Color(0xFF303846),
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
             textAlign = TextAlign.Center
         )
 
+        // Flexible space before the buttons
         Spacer(modifier = Modifier.weight(1f))
 
+        // Register button
         Button(
             onClick = onCreateAccountClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp),
-            shape = RoundedCornerShape(14.dp),
+                .height(50.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Teal,
+                containerColor = tealColor,
                 contentColor = Color.White
             )
         ) {
             Text(
-                text = "Create Account",
-                fontSize = 16.sp,
+                text = "Register",
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
+        // Sign-in button
         OutlinedButton(
             onClick = onSignInClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp),
-            shape = RoundedCornerShape(14.dp),
+                .height(50.dp),
+            shape = RoundedCornerShape(28.dp),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = tealColor
+            ),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Color.White
+                contentColor = tealColor
             )
         ) {
-            Text("Sign In", fontSize = 16.sp)
+            Text(
+                text = "Sign in",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "LOCAL SKILLS. REAL OPPORTUNITIES.",
-            color = LightText,
-            fontSize = 10.sp,
-            letterSpacing = 1.5.sp,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
+
