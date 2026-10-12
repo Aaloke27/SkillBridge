@@ -221,42 +221,78 @@ fun WorkerBookingsScreen() {
                         WorkerBookingCard(
                             booking = booking,
                             isCompleting = completingBookingId == booking.id,
+
                             onNavigate = {
-                                val latitude = booking.customerLatitude
-                                val longitude = booking.customerLongitude
-
-                                if (latitude != null && longitude != null) {
-                                    val navigationUri = Uri.parse(
-                                        "google.navigation:q=$latitude,$longitude"
-                                    )
-
-                                    val intent = Intent(
-                                        Intent.ACTION_VIEW,
-                                        navigationUri
-                                    ).apply {
-                                        setPackage("com.google.android.apps.maps")
-                                    }
-
+                                scope.launch {
                                     try {
-                                        context.startActivity(intent)
-                                    } catch (e: ActivityNotFoundException) {
-                                        val fallbackUri = Uri.parse(
-                                            "https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude"
+                                        val currentWorkerId = auth.currentUser?.uid
+
+                                        if (currentWorkerId.isNullOrBlank()) {
+                                            message = "Please sign in again."
+                                            return@launch
+                                        }
+
+                                        // Recheck the latest booking status.
+                                        val bookingSnapshot = firestore
+                                            .collection("bookings")
+                                            .document(booking.id)
+                                            .get()
+                                            .await()
+
+                                        if (!bookingSnapshot.exists()) {
+                                            message = "This booking no longer exists."
+                                            return@launch
+                                        }
+
+                                        if (
+                                            bookingSnapshot.getString("workerId") != currentWorkerId ||
+                                            bookingSnapshot.getString("status") != "Accepted"
+                                        ) {
+                                            message = "Navigation is available only for accepted jobs."
+                                            return@launch
+                                        }
+
+                                        // Fetch GPS coordinates from the separate location document.
+                                        val locationSnapshot = firestore
+                                            .collection("bookingLocations")
+                                            .document(booking.id)
+                                            .get()
+                                            .await()
+
+                                        val latitude =
+                                            locationSnapshot.getDouble("customerLatitude")
+                                        val longitude =
+                                            locationSnapshot.getDouble("customerLongitude")
+
+                                        if (latitude == null || longitude == null) {
+                                            message = "Customer GPS location is unavailable."
+                                            return@launch
+                                        }
+
+                                        // Open Google Maps navigation.
+                                        val navigationUri = Uri.parse(
+                                            "google.navigation:q=$latitude,$longitude"
                                         )
 
-                                        context.startActivity(
-                                            Intent(
-                                                Intent.ACTION_VIEW,
-                                                fallbackUri
+                                        val intent = Intent(
+                                            Intent.ACTION_VIEW,
+                                            navigationUri
+                                        ).setPackage("com.google.android.apps.maps")
+
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (e: ActivityNotFoundException) {
+                                            val fallbackUri = Uri.parse(
+                                                "https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude"
                                             )
-                                        )
+
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, fallbackUri)
+                                            )
+                                        }
+                                    } catch (e: Exception) {
+                                        message = "Couldn't access the location. Please try again."
                                     }
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Customer GPS location is unavailable",
-                                        Toast.LENGTH_LONG
-                                    ).show()
                                 }
                             },
                             onComplete = {
@@ -452,18 +488,22 @@ private fun WorkerBookingCard(
 
             Spacer(modifier = Modifier.width(5.dp))
 
-            // Navigation shortcut
-            androidx.compose.material3.IconButton(
-                onClick = onNavigate,
-                modifier = Modifier.size(30.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = "Navigate to customer",
-                    tint = BookingGray,
-                    modifier = Modifier.size(22.dp)
-                )
+
+            // Navigation is visible only for accepted jobs.
+            if (status.equals("Accepted", ignoreCase = true)) {
+                androidx.compose.material3.IconButton(
+                    onClick = onNavigate,
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Navigate to customer",
+                        tint = BookingGray,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
+
         }
     }
 }

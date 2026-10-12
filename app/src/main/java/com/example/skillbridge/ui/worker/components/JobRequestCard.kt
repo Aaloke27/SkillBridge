@@ -178,49 +178,54 @@ fun JobRequestCard(
             Spacer(modifier = Modifier.width(3.dp))
 
             // Navigate to customer's saved GPS coordinates
-            IconButton(
-                onClick = {
-                    val latitude = request.customerLatitude
-                    val longitude = request.customerLongitude
 
-                    if (latitude == null || longitude == null) {
-                        Toast.makeText(
-                            context,
-                            "Customer GPS location is unavailable",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        val navigationUri = Uri.parse(
-                            "google.navigation:q=$latitude,$longitude"
-                        )
+            // Navigate only while the booking is Accepted.
+            if (request.status == "Accepted") {
+                IconButton(
+                    onClick = {
+                        val latitude = request.customerLatitude
+                        val longitude = request.customerLongitude
 
-                        val googleMapsIntent = Intent(
-                            Intent.ACTION_VIEW,
-                            navigationUri
-                        ).setPackage("com.google.android.apps.maps")
-
-                        try {
-                            context.startActivity(googleMapsIntent)
-                        } catch (e: ActivityNotFoundException) {
-                            val fallbackUri = Uri.parse(
-                                "https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude"
+                        if (latitude == null || longitude == null) {
+                            Toast.makeText(
+                                context,
+                                "Customer GPS location is unavailable",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            val navigationUri = Uri.parse(
+                                "google.navigation:q=$latitude,$longitude"
                             )
 
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, fallbackUri)
-                            )
+                            val googleMapsIntent = Intent(
+                                Intent.ACTION_VIEW,
+                                navigationUri
+                            ).setPackage("com.google.android.apps.maps")
+
+                            try {
+                                context.startActivity(googleMapsIntent)
+                            } catch (e: ActivityNotFoundException) {
+                                val fallbackUri = Uri.parse(
+                                    "https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude"
+                                )
+
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, fallbackUri)
+                                )
+                            }
                         }
-                    }
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = "Navigate to customer",
-                    tint = WorkerMuted,
-                    modifier = Modifier.size(25.dp)
-                )
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Navigate to customer",
+                        tint = WorkerMuted,
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
             }
+
         }
     }
 }

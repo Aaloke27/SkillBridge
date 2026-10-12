@@ -9,17 +9,52 @@ class BookingRepository(
 ) {
 
     suspend fun createBooking(booking: Booking): Result<String> {
-        return try {
-            val document = db.collection("bookings").document()
+        val bookingRef = db.collection("bookings").document()
+        val locationRef = db.collection("bookingLocations")
+            .document(bookingRef.id)
 
-            val bookingWithId = booking.copy(
-                id = document.id,
-                createdAt = System.currentTimeMillis()
+        return try {
+            val createdAt = System.currentTimeMillis()
+
+            // Save booking details WITHOUT GPS coordinates.
+            val bookingData = hashMapOf<String, Any>(
+                "id" to bookingRef.id,
+                "customerId" to booking.customerId,
+                "customerName" to booking.customerName,
+                "workerId" to booking.workerId,
+                "workerName" to booking.workerName,
+                "profession" to booking.profession,
+                "description" to booking.description,
+                "status" to "Pending",
+                "createdAt" to createdAt,
+                "customerArea" to booking.customerArea
             )
 
-            document.set(bookingWithId).await()
+            // Store GPS coordinates in a separate document.
+            val locationData = hashMapOf<String, Any>(
+                "bookingId" to bookingRef.id,
+                "customerId" to booking.customerId,
+                "workerId" to booking.workerId
+            )
 
-            Result.success(document.id)
+            val latitude = booking.customerLatitude
+            val longitude = booking.customerLongitude
+
+            // Save coordinates only when BOTH are available.
+            if (latitude != null && longitude != null) {
+                locationData["customerLatitude"] = latitude
+                locationData["customerLongitude"] = longitude
+            }
+
+            // Both documents are created atomically.
+            val batch = db.batch()
+            batch.set(bookingRef, bookingData)
+            batch.set(locationRef, locationData)
+
+            batch.commit().await()
+
+            Result.success(bookingRef.id)
+
         } catch (e: Exception) {
             Result.failure(e)
         }
